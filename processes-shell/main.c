@@ -1,8 +1,11 @@
-# include<stdio.h>
-# include<string.h>
-# include<stdlib.h>
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 char *EXIT = "exit";
+char path[512] = "/usr/;/usr/bin/";
 
 char *strtrim(char *target) {
     int len;
@@ -27,25 +30,55 @@ char *strtrim(char *target) {
     return res;
 }
 
-char **parse(char *input) {
-    while (input && input != "\0") {
-        strsep(&input, "&");
-    }
-    
+int search(char *command) {
+
 }
 
+char **parse(char *command) {
+    char **argv = malloc(256 * sizeof(char *));
+    char **p = argv;
+    char *head = command;
+    char*token;
+    while ((token = strsep(&head, " ")) != NULL) {
+        *p = token;
+        p++;
+    }
+    return argv;
+}
+
+
+void execute(char *command) {
+    pid_t pid;
+    int status;
+    pid = fork();
+    // parent process
+    if (pid != 0) {
+        waitpid(pid, &status, 0);
+        printf("child process %d exit.\n", pid);
+    } else { // child process
+        int errno;
+        char *cmd = "/usr/bin/ls";
+        char **argvs = parse(command);
+        errno = execv(cmd, argvs);
+        free(argvs);
+        exit(errno);
+    }
+}
 
 
 int main(int argc, char *argv[]) {
     char *line;
-    char *trimed;
+    char *command = malloc(sizeof("ls -l"));
+    memcpy(command, "ls -l", sizeof("ls -l"));
     size_t len = 0;
-    do {
-        printf("wish> ");
-        getline(&line, &len, stdin);
-        trimed = strtrim(line);
-        free(trimed);
-    } while (strcmp(trimed, EXIT) != 0);
+    execute(command);
+    // do {
+    //     printf("wish> ");
+    //     getline(&line, &len, stdin);
+    //     command = strtrim(line);
+    //     execute(command);
+    //     // free(trimed);
+    // } while (strcmp(command, EXIT) != 0);
 
     return 0;
 }
