@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 char *EXIT = "exit";
-char path[512] = "/usr/;/usr/bin/";
+char path[512] = "/usr/bin";
 char error_msg[] = "An error has occurred\n";
 int MAX_COMMAND = 100;
 
@@ -38,8 +38,9 @@ void strtrim(char **str);
 list_t* parse(char *str);
 command_t* parse_command(char *str);
 int check_redirection(char *str);
-void run(char *command);
-int run_command(command_t *cmd);
+char* find_cmd(command_t *cmd);
+void run(char* str);
+int run_command(char* abs_path, command_t *cmd);
 void append_path(char **paths, char *path);
 void change_dir(char *dir);
 void exit();

@@ -33,6 +33,7 @@ int check_redirection(char *str) {
 
 void append(list_t* list, command_t* cmd) {
     node_t* node = (node_t*)malloc(sizeof(node_t));
+    node->cmd = cmd;
     if (list->head == NULL) {
         list->head = node;
         list->tail = list->head;
@@ -92,16 +93,74 @@ void execute(char *command) {
     }
 }
 
+char* check_access(command_t *cmd) {
+    char *p = path;
+    char *dir;
+    char *abs_path = NULL;
+
+    while ((dir = strsep(&p, ";")) != NULL) {
+        abs_path = (char *)malloc(sizeof(char) * (strlen(dir) + 1 + strlen(cmd->argc)));
+        strcat(abs_path, dir);
+        strcat(abs_path, "/");
+        strcat(abs_path, cmd->argc);
+        printf("abs_path: %s\n", abs_path);
+
+        if (access(abs_path, X_OK) == 0) {
+            break;
+        } else {
+            free(abs_path);
+            abs_path = NULL;
+        }
+    }
+    return abs_path;
+}
+
+void run(char* str) {
+    list_t* list = parse(str);
+    pid_t pid;
+    int status;
+
+    char *abs_path = check_access(list->head->cmd);
+    if (abs_path == NULL) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return;
+    }
+
+    pid = fork();
+    if (pid > 0) {
+        printf("child process pid %d\n", pid);
+        int errno = run_command(abs_path, list->head->cmd);
+        exit(errno);
+    }
+
+    waitpid(pid, &status, 0);
+    printf("child process exit %d\n", status);
+}
+
+int run_command(char* abs_path, command_t *cmd) {
+    int errno = 0;
+    char** argvs = (char**)malloc(sizeof(char*) * 3);
+    argvs[0] = cmd->argc;
+    argvs[1] = cmd->argv[0];
+    argvs[2] = cmd->argv[1];
+    errno = execv(abs_path, argvs);
+    return errno;
+}
 
 int main(int argc, char *argv[]) {
     char *line;
     size_t  len = 0;
+    list_t* list;
 
     do {
         printf("wish> ");
         getline(&line, &len, stdin);
         strtrim(&line);
-        printf("%s\n", line);
-    } while (strcmp(line, EXIT) != 0);
+        if (strcmp(line, EXIT) == 0) {
+            break;
+        }
+        run(line);
+        // printf("%d\n", strcmp(line, EXIT));
+    } while (0);
     return 0;
 }
