@@ -9,6 +9,24 @@
 * 并行命令
 * 批处理
 
+## 关于C语言编程
+
+### 字符串处理
+
+如果函数入参为字符串指针，且函数会修复指针的时候，一般复制一份当做入参。
+```c
+
+int main() {
+    char *line;
+    size_t len = 0;
+    getline(&line, &len, 1);
+    char *s = line; // strsep传入的是指针s的地址，且会改变s指向内存的值。所以拷贝一份在传入。
+    strsep(&s, ";");
+    free(line); // strsep处理的是指针s，line并没有变更，可以直接释放内存。
+    return 0;
+}
+```
+
 
 ## Requirements
 
