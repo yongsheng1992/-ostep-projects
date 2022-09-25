@@ -1,10 +1,13 @@
 #include "wish.h"
 
-void strtrim(char **str) {
+char *strtrim(char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
     int len;
     char *head, *tail;
-    head = *str;
-    tail = head + strlen(*str) - 1;
+    head = str;
+    tail = head + strlen(str) - 1;
     
     while (isspace((unsigned char)*head)) {
         head++;
@@ -13,21 +16,28 @@ void strtrim(char **str) {
         tail--;
     }
     tail[1] = '\0';
+    return head;
 }
 
 int check_redirection(char *str) {
-    char *token = strsep(&str, ">");
-    if (token == NULL) {
+    char *s = strdup(str);
+    char *saved = s;
+    // char *s = str;
+    char *token = NULL;
+    token = strsep(&s, ">");
+    if (s == NULL) {
         return 0;
     }
     int file_cnt = 0;
-    while ((token = strsep(&str, " ")) != NULL) {
+    s = strtrim(s);
+    while ((token = strsep(&s, " ")) != NULL) {
         file_cnt++;
     }
-    
+
     if (file_cnt > 1) {
         return 1;
     }
+    free(saved);
     return 0;
 }
 
@@ -46,12 +56,19 @@ void append(list_t* list, command_t* cmd) {
 list_t* parse(char *str) {
     char *token;
     list_t* list = (list_t *)malloc(sizeof(list));
+    list->head = NULL;
+    list->tail = NULL;
 
     while ((token = strsep(&str, "&&")) != NULL) {
         if (check_redirection(token) != 0) {
-            return NULL;
+            return list;
         }
         command_t *cmd = parse_command(token);
+
+        if (cmd->output != NULL && cmd->fd < 1) {
+             write(STDERR_FILENO, error_msg, strlen(error_msg));
+             return list;
+        }
         append(list, cmd);
     }
     return list; 
@@ -66,31 +83,15 @@ command_t* parse_command(char *str) {
     command_t* cmd;
     cmd = (command_t*)malloc(sizeof(command_t));
     cmd->argv = (char **)malloc(sizeof(char *) * 2);
-
-    cmd->argc = argc;
-    cmd->argv[0] = argv;
+    cmd->output = NULL;
+    cmd->argc = strtrim(argc);
+    cmd->argv[0] = strtrim(argv);
     cmd->argv[1] = NULL;
-    cmd->output = str;
-    return cmd;
-}
-
-
-void execute(char *command) {
-    pid_t pid;
-    int status;
-    pid = fork();
-    // parent process
-    if (pid != 0) {
-        waitpid(pid, &status, 0);
-        printf("child process %d exit.\n", pid);
-    } else { // child process
-        int errno;
-        // char *cmd = "/usr/bin/ls";
-        // list *l = parse(command);
-        // errno = execv(cmd, argvs);
-        // free(argvs);
-        // exit(errno);
+    cmd->output = strtrim(str);
+    if (cmd->output != NULL) {
+        cmd->fd = open(cmd->output, O_CREAT|O_RDWR|O_TRUNC, 0666);
     }
+    return cmd;
 }
 
 char* check_access(command_t *cmd) {
@@ -103,7 +104,6 @@ char* check_access(command_t *cmd) {
         strcat(abs_path, dir);
         strcat(abs_path, "/");
         strcat(abs_path, cmd->argc);
-        printf("abs_path: %s\n", abs_path);
 
         if (access(abs_path, X_OK) == 0) {
             break;
@@ -117,8 +117,12 @@ char* check_access(command_t *cmd) {
 
 void run(char* str) {
     list_t* list = parse(str);
+    if (list->head == NULL) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return;
+    }
     pid_t pid;
-    int status;
+    int status = 0;
 
     char *abs_path = check_access(list->head->cmd);
     if (abs_path == NULL) {
@@ -127,14 +131,15 @@ void run(char* str) {
     }
 
     pid = fork();
-    if (pid > 0) {
-        printf("child process pid %d\n", pid);
+    if (pid == 0) {
         int errno = run_command(abs_path, list->head->cmd);
         exit(errno);
     }
 
     waitpid(pid, &status, 0);
-    printf("child process exit %d\n", status);
+    if (list->head->cmd->fd > 0) {
+        close(list->head->cmd->fd);
+    }
 }
 
 int run_command(char* abs_path, command_t *cmd) {
@@ -143,6 +148,9 @@ int run_command(char* abs_path, command_t *cmd) {
     argvs[0] = cmd->argc;
     argvs[1] = cmd->argv[0];
     argvs[2] = cmd->argv[1];
+    if (cmd->fd > 0) {
+        dup2(cmd->fd, STDOUT_FILENO);
+    }
     errno = execv(abs_path, argvs);
     return errno;
 }
@@ -155,12 +163,11 @@ int main(int argc, char *argv[]) {
     do {
         printf("wish> ");
         getline(&line, &len, stdin);
-        strtrim(&line);
-        if (strcmp(line, EXIT) == 0) {
+        char *str = strtrim(line);
+        if (strcmp(str, EXIT) == 0) {
             break;
         }
-        run(line);
-        // printf("%d\n", strcmp(line, EXIT));
-    } while (0);
+        run(str);
+    } while (1);
     return 0;
 }
