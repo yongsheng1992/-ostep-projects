@@ -36,8 +36,9 @@ int main() {
 ## To do list
 
 - [x] 使用fork+execv+waitpid在子进程执行命令
-- [ ] 使用`dup2`重定向子进程的标准输出到文件
+- [x] 使用`dup2`重定向子进程的标准输出到文件
 - [x] `exit`
-- [ ] 错误
+- [x] 并行处理
+- [ ] 批处理
 - [ ] cmake 编译项目
 
