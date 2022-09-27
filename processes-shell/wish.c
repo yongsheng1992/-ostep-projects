@@ -88,7 +88,7 @@ list_t* parse(char *str) {
 command_t* parse_command(char *str) {
     char *argc;
     char *argv;
-    str = strtrim(argc);
+    str = strtrim(str);
     argc = strsep(&str, " ");
     argv = strsep(&str, ">");
     command_t* cmd;
@@ -101,6 +101,10 @@ command_t* parse_command(char *str) {
     cmd->output = strtrim(str);
     if (cmd->output != NULL) {
         cmd->fd = open(cmd->output, O_CREAT|O_RDWR|O_TRUNC, 0666);
+    }
+    cmd->type = SYSTEM;
+    if (strcmp(cmd->argc, CMD_EXIT) == 0|| strcmp(cmd->argc, CMD_CD) == 0 || strcmp(cmd->argc, CMD_PATH) == 0) {
+        cmd->type = BUILT_IN;   
     }
     return cmd;
 }
@@ -150,6 +154,15 @@ void run(char* str) {
     while (node != NULL) {
         pid_t pid;
         int status = 0;
+        if (node->cmd->type == BUILT_IN) {
+            if (strcmp(node->cmd->argc, CMD_CD) == 0) {
+                change_dir(node->cmd->argv[0]);
+            } else if (strcmp(node->cmd->argc, CMD_PATH) == 0) {
+                change_path(node->cmd->argv[0]);
+            }
+            node = node->next;
+            continue;
+        }
         char *abs_path = check_access(node->cmd);
         if (abs_path == NULL) {
             write(STDERR_FILENO, error_msg, strlen(error_msg));
@@ -194,6 +207,28 @@ int run_command(char* abs_path, command_t *cmd) {
     return errno;
 }
 
+void change_path(char *new_apth) {
+    path[0] = '\0';
+    if (new_apth == NULL) {
+        return;
+    }
+    char *str = new_apth;
+    char *token = NULL;
+    while ((token = strsep(&str, " ")) != NULL) {
+        strcat(path, token);
+        strcat(path, ";");
+    }
+    path[strlen(path)-1] = '\0';
+    return;
+}
+
+void change_dir(char *dir) {
+    if (chdir(dir) < 0 ) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return;
+    }
+}
+
 int main(int argc, char *argv[]) {
     char *line;
     size_t  len = 0;
@@ -203,8 +238,8 @@ int main(int argc, char *argv[]) {
         printf("wish> ");
         getline(&line, &len, stdin);
         char *str = strtrim(line);
-        if (strcmp(str, EXIT) == 0) {
-            break;
+        if (strcmp(str, CMD_EXIT) == 0) {
+            exit(0);
         }
         run(str);
     } while (1);
