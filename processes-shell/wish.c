@@ -41,9 +41,18 @@ int check_redirection(char *str) {
     return 0;
 }
 
+list_t *new_list() {
+    list_t *list = (list_t *)malloc(sizeof(list_t));
+    list->size = 0;
+    list->head = NULL;
+    list->tail = NULL;
+    return list;
+}
+
 void append(list_t* list, command_t* cmd) {
     node_t* node = (node_t*)malloc(sizeof(node_t));
     node->cmd = cmd;
+    list->size = list->size + 1;
     if (list->head == NULL) {
         list->head = node;
         list->tail = list->head;
@@ -55,11 +64,11 @@ void append(list_t* list, command_t* cmd) {
 
 list_t* parse(char *str) {
     char *token;
-    list_t* list = (list_t *)malloc(sizeof(list));
-    list->head = NULL;
-    list->tail = NULL;
-
+    list_t* list = new_list();
     while ((token = strsep(&str, "&&")) != NULL) {
+        if (strlen(token) == 0) {
+            continue;
+        }
         if (check_redirection(token) != 0) {
             return list;
         }
@@ -71,6 +80,7 @@ list_t* parse(char *str) {
         }
         append(list, cmd);
     }
+    // print_list(list);
     return list; 
 }
 
@@ -78,6 +88,7 @@ list_t* parse(char *str) {
 command_t* parse_command(char *str) {
     char *argc;
     char *argv;
+    str = strtrim(argc);
     argc = strsep(&str, " ");
     argv = strsep(&str, ">");
     command_t* cmd;
@@ -95,16 +106,18 @@ command_t* parse_command(char *str) {
 }
 
 char* check_access(command_t *cmd) {
-    char *p = path;
+    char *path1 = (char *)malloc(sizeof(char)*strlen(path));
+    strcat(path1, path);
+    char *p = path1;
     char *dir;
     char *abs_path = NULL;
-
     while ((dir = strsep(&p, ";")) != NULL) {
         abs_path = (char *)malloc(sizeof(char) * (strlen(dir) + 1 + strlen(cmd->argc)));
+        abs_path[0] = '\0';
+
         strcat(abs_path, dir);
         strcat(abs_path, "/");
         strcat(abs_path, cmd->argc);
-
         if (access(abs_path, X_OK) == 0) {
             break;
         } else {
@@ -112,7 +125,18 @@ char* check_access(command_t *cmd) {
             abs_path = NULL;
         }
     }
+    free(path1);
     return abs_path;
+}
+
+void print_list(list_t *list) {
+    node_t *node = list->head;
+    printf("print list start\n");
+    while (node != NULL) {
+        printf("%s %s\n", node->cmd->argc, node->cmd->argv[0]);
+        node = node->next;
+    }
+    printf("print list end\n");
 }
 
 void run(char* str) {
@@ -121,29 +145,44 @@ void run(char* str) {
         write(STDERR_FILENO, error_msg, strlen(error_msg));
         return;
     }
+    node_t *node = list->head;
+
+    while (node != NULL) {
+        pid_t pid;
+        int status = 0;
+        char *abs_path = check_access(node->cmd);
+        if (abs_path == NULL) {
+            write(STDERR_FILENO, error_msg, strlen(error_msg));
+            return;
+        }
+        pid = fork();
+        if (pid == 0) {
+            run_command(abs_path, node->cmd);
+        }
+        node = node->next;
+    }
     pid_t pid;
-    int status = 0;
 
-    char *abs_path = check_access(list->head->cmd);
-    if (abs_path == NULL) {
-        write(STDERR_FILENO, error_msg, strlen(error_msg));
-        return;
+    while (1) {
+        int ret = wait(NULL);
+        if (ret == -1) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
     }
-
-    pid = fork();
-    if (pid == 0) {
-        int errno = run_command(abs_path, list->head->cmd);
-        exit(errno);
-    }
-
-    waitpid(pid, &status, 0);
-    if (list->head->cmd->fd > 0) {
-        close(list->head->cmd->fd);
+    
+    node = list->head;
+    while (node != NULL) {
+        if (node->cmd->fd > 0) {
+            close(node->cmd->fd);
+        }
+        node = node->next;
     }
 }
 
 int run_command(char* abs_path, command_t *cmd) {
-    int errno = 0;
     char** argvs = (char**)malloc(sizeof(char*) * 3);
     argvs[0] = cmd->argc;
     argvs[1] = cmd->argv[0];

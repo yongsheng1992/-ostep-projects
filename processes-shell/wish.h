@@ -5,9 +5,10 @@
 #include <ctype.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <errno.h>
 
 char *EXIT = "exit";
-char path[512] = "/usr/bin";
+char path[512] = "/usr/bin;/bin";
 char error_msg[] = "An error has occurred\n";
 int MAX_COMMAND = 100;
 
@@ -30,12 +31,14 @@ typedef struct node node_t;
 struct list {
     node_t* head;
     node_t* tail;
+    int size;
 };
 
 typedef struct list list_t;
 
+list_t *new_list();
 void append(list_t* list, command_t *cmd);
-
+void print_list(list_t *list);
 char *strtrim(char *str);
 list_t *parse(char *str);
 command_t *parse_command(char *str);
