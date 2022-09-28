@@ -57,6 +57,6 @@ int run_command(char *abs_path, command_t *cmd);
 void append_path(char **paths, char *path);
 void change_dir(char *dir);
 void exit();
-void batch();
+void batch(char *pathname);
 void change_path(char *new_path);
 void change_dir(char *dir);

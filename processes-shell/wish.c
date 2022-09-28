@@ -76,7 +76,8 @@ list_t* parse(char *str) {
 
         if (cmd->output != NULL && cmd->fd < 1) {
              write(STDERR_FILENO, error_msg, strlen(error_msg));
-             return list;
+             exit(0);
+            //  return list;
         }
         append(list, cmd);
     }
@@ -144,6 +145,9 @@ void print_list(list_t *list) {
 }
 
 void run(char* str) {
+    if (strlen(str) == 0 || strcmp(str, "\n") == 0) {
+        return;
+    }
     list_t* list = parse(str);
     if (list->head == NULL) {
         write(STDERR_FILENO, error_msg, strlen(error_msg));
@@ -159,6 +163,12 @@ void run(char* str) {
                 change_dir(node->cmd->argv[0]);
             } else if (strcmp(node->cmd->argc, CMD_PATH) == 0) {
                 change_path(node->cmd->argv[0]);
+            } else if (strcmp(node->cmd->argc, CMD_EXIT) == 0) {
+                if (node->cmd->argv[0] != NULL) {
+                    write(STDERR_FILENO, error_msg, strlen(error_msg));
+                    exit(0);
+                }
+                exit(0);
             }
             node = node->next;
             continue;
@@ -203,6 +213,7 @@ int run_command(char* abs_path, command_t *cmd) {
     if (cmd->fd > 0) {
         dup2(cmd->fd, STDOUT_FILENO);
     }
+    printf("%s\n", argvs[1]);
     errno = execv(abs_path, argvs);
     return errno;
 }
@@ -229,10 +240,41 @@ void change_dir(char *dir) {
     }
 }
 
+
+void batch(char *pathname) {
+    FILE *fp = fopen(pathname,"r");
+    if (fp == NULL) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return;
+    }
+
+    char *line;
+    size_t buf_size = 0;
+    size_t readn = 0;
+
+    while (1) {
+        readn = getline(&line, &buf_size, fp);
+        if (readn == -1) {
+            break;
+        }
+
+        char *str = strtrim(line);
+        if (strcmp(str, CMD_EXIT) == 0) {
+            exit(0);
+        }
+        run(str);
+    }
+    free(line);
+}
+
 int main(int argc, char *argv[]) {
     char *line;
     size_t  len = 0;
     list_t* list;
+    if (argc == 2) {
+        batch(argv[1]);
+        return 0;
+    }
 
     do {
         printf("wish> ");
