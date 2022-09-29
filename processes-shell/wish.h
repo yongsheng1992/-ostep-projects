@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define MAX_ARGV 100
 #define BUILT_IN 0
 #define SYSTEM 1
 
@@ -58,5 +59,5 @@ void append_path(char **paths, char *path);
 void change_dir(char *dir);
 void exit();
 void batch(char *pathname);
-void change_path(char *new_path);
+void change_path(char **paths);
 void change_dir(char *dir);

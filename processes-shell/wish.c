@@ -94,11 +94,23 @@ command_t* parse_command(char *str) {
     argv = strsep(&str, ">");
     command_t* cmd;
     cmd = (command_t*)malloc(sizeof(command_t));
-    cmd->argv = (char **)malloc(sizeof(char *) * 2);
+    cmd->argv = (char **)malloc(sizeof(char *) * MAX_ARGV);
+    argv = strtrim(argv);
+    char *token = NULL;
+    int cnt = 0;
+    argc = strtrim(argc);
+    cmd->argv[cnt++] = strtrim(argc);
+    while ((token = strsep(&argv, " ")) != NULL) {
+        if (cnt >= MAX_ARGV) {
+            write(STDERR_FILENO, error_msg, strlen(error_msg));
+            exit(0);
+        }
+        cmd->argv[cnt] = token;
+        cnt++;
+    }
+    cmd->argv[cnt] = NULL;
     cmd->output = NULL;
-    cmd->argc = strtrim(argc);
-    cmd->argv[0] = strtrim(argv);
-    cmd->argv[1] = NULL;
+    cmd->argc = argc;
     cmd->output = strtrim(str);
     if (cmd->output != NULL) {
         cmd->fd = open(cmd->output, O_CREAT|O_RDWR|O_TRUNC, 0666);
@@ -156,13 +168,14 @@ void run(char* str) {
     node_t *node = list->head;
 
     while (node != NULL) {
+        // printf("%s %s %s\n", node->cmd->argc, node->cmd->argv[1],  node->cmd->argv[2]);
         pid_t pid;
         int status = 0;
         if (node->cmd->type == BUILT_IN) {
             if (strcmp(node->cmd->argc, CMD_CD) == 0) {
-                change_dir(node->cmd->argv[0]);
+                change_dir(node->cmd->argv[1]);
             } else if (strcmp(node->cmd->argc, CMD_PATH) == 0) {
-                change_path(node->cmd->argv[0]);
+                change_path(node->cmd->argv+1);
             } else if (strcmp(node->cmd->argc, CMD_EXIT) == 0) {
                 if (node->cmd->argv[0] != NULL) {
                     write(STDERR_FILENO, error_msg, strlen(error_msg));
@@ -174,6 +187,7 @@ void run(char* str) {
             continue;
         }
         char *abs_path = check_access(node->cmd);
+        // printf("abs = %s %s\n", abs_path, path);
         if (abs_path == NULL) {
             write(STDERR_FILENO, error_msg, strlen(error_msg));
             return;
@@ -206,28 +220,23 @@ void run(char* str) {
 }
 
 int run_command(char* abs_path, command_t *cmd) {
-    char** argvs = (char**)malloc(sizeof(char*) * 3);
-    argvs[0] = cmd->argc;
-    argvs[1] = cmd->argv[0];
-    argvs[2] = cmd->argv[1];
     if (cmd->fd > 0) {
         dup2(cmd->fd, STDOUT_FILENO);
     }
-    printf("%s\n", argvs[1]);
-    errno = execv(abs_path, argvs);
+    // printf("abs %s path = %s\n", abs_path, path);
+    // printf("%s#%s#%s#%s\n", cmd->argv[0], cmd->argv[1], cmd->argv[2], cmd->argv[3]);
+    errno = execv(abs_path, cmd->argv);
     return errno;
 }
 
-void change_path(char *new_apth) {
+void change_path(char **paths) {
     path[0] = '\0';
-    if (new_apth == NULL) {
-        return;
-    }
-    char *str = new_apth;
-    char *token = NULL;
-    while ((token = strsep(&str, " ")) != NULL) {
-        strcat(path, token);
+    char ** p = paths;
+
+    while(*p != NULL) {
+        strcat(path, *p);
         strcat(path, ";");
+        p++;
     }
     path[strlen(path)-1] = '\0';
     return;
