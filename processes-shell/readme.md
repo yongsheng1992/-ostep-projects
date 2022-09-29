@@ -27,6 +27,17 @@ int main() {
 }
 ```
 
+如果后续还需要处理`strsep`传入的字符串，那么需要使用`malloc`或者`strdup`复制一份字符串在处理：
+```c
+int check_redirection(char *str) {
+    char *s = strdup(str);
+    char *saved = s;
+    // do some stuff
+    free(saved);
+    return 0;
+}
+```
+
 
 ## Requirements
 
