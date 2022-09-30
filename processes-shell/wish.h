@@ -7,6 +7,14 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define MAX_ARGV 100
+#define BUILT_IN 0
+#define SYSTEM 1
+
+#define CMD_PATH "path"
+#define CMD_CD  "cd"
+#define CMD_EXIT "exit"
+
 char *EXIT = "exit";
 char path[512] = "/usr/bin;/bin";
 char error_msg[] = "An error has occurred\n";
@@ -16,6 +24,7 @@ struct command {
     char* argc;
     char** argv;
     char* output;
+    int type;
     int fd;
 };
 
@@ -49,3 +58,6 @@ int run_command(char *abs_path, command_t *cmd);
 void append_path(char **paths, char *path);
 void change_dir(char *dir);
 void exit();
+void batch(char *pathname);
+void change_path(char **paths);
+void change_dir(char *dir);

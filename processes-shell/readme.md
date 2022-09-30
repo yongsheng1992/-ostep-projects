@@ -27,6 +27,17 @@ int main() {
 }
 ```
 
+如果后续还需要处理`strsep`传入的字符串，那么需要使用`malloc`或者`strdup`复制一份字符串在处理：
+```c
+int check_redirection(char *str) {
+    char *s = strdup(str);
+    char *saved = s;
+    // do some stuff
+    free(saved);
+    return 0;
+}
+```
+
 
 ## Requirements
 
@@ -37,8 +48,9 @@ int main() {
 
 - [x] 使用fork+execv+waitpid在子进程执行命令
 - [x] 使用`dup2`重定向子进程的标准输出到文件
-- [x] `exit`
-- [x] 并行处理
+- [x] `exit` 内建命令
+- [x] `cd` 内建命令
+- [x] `path`内建命令
 - [ ] 批处理
+- [ ] 测试
 - [ ] cmake 编译项目
-
