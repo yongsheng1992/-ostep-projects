@@ -65,12 +65,13 @@ void append(list_t* list, command_t* cmd) {
 list_t* parse(char *str) {
     char *token;
     list_t* list = new_list();
-    while ((token = strsep(&str, "&&")) != NULL) {
+    while ((token = strsep(&str, "&")) != NULL) {
         if (strlen(token) == 0) {
             continue;
         }
         if (check_redirection(token) != 0) {
-            return list;
+            write(STDERR_FILENO, error_msg, strlen(error_msg));
+            exit(0);
         }
         command_t *cmd = parse_command(token);
 
@@ -103,15 +104,23 @@ command_t* parse_command(char *str) {
     while ((token = strsep(&argv, " ")) != NULL) {
         if (cnt >= MAX_ARGV) {
             write(STDERR_FILENO, error_msg, strlen(error_msg));
-            exit(0);
+            exit(1);
         }
         cmd->argv[cnt] = token;
         cnt++;
     }
+    str = strtrim(str);
     cmd->argv[cnt] = NULL;
     cmd->output = NULL;
     cmd->argc = argc;
-    cmd->output = strtrim(str);
+    if (str != NULL) {
+        char *output = strsep(&str, " ");
+        if (str != NULL) {
+            write(STDERR_FILENO, error_msg, strlen(error_msg));
+            exit(1);
+        }
+        cmd->output = output;
+    }
     if (cmd->output != NULL) {
         cmd->fd = open(cmd->output, O_CREAT|O_RDWR|O_TRUNC, 0666);
     }
@@ -162,7 +171,7 @@ void run(char* str) {
     }
     list_t* list = parse(str);
     if (list->head == NULL) {
-        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        // write(STDERR_FILENO, error_msg, strlen(error_msg));
         return;
     }
     node_t *node = list->head;
@@ -225,11 +234,16 @@ int run_command(char* abs_path, command_t *cmd) {
     }
     // printf("abs %s path = %s\n", abs_path, path);
     // printf("%s#%s#%s#%s\n", cmd->argv[0], cmd->argv[1], cmd->argv[2], cmd->argv[3]);
+    if (access(abs_path, X_OK) != 0) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return 1;
+    }
     errno = execv(abs_path, cmd->argv);
     return errno;
 }
 
 void change_path(char **paths) {
+    // printf("change path\n");
     path[0] = '\0';
     char ** p = paths;
 
@@ -254,7 +268,7 @@ void batch(char *pathname) {
     FILE *fp = fopen(pathname,"r");
     if (fp == NULL) {
         write(STDERR_FILENO, error_msg, strlen(error_msg));
-        return;
+        exit(1);
     }
 
     char *line;
@@ -285,6 +299,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    if (argc > 2) {
+        write(STDERR_FILENO, error_msg, strlen(error_msg));
+        return 1;
+    }
     do {
         printf("wish> ");
         getline(&line, &len, stdin);
